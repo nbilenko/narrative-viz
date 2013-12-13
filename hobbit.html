@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>The Hobbit</title>
+<meta charset="utf-8">
+<link rel="stylesheet" href="./d3.slider.css" />
+<script src="./d3.v3.min.js"></script>
+<script src="./d3.tip.min.js"></script>
+<script src="./d3.slider.js"></script>
+<script src="./jquery.min.js"></script>
+<script>
+    $(document).ready(function(){
+      window.addEventListener("keydown", function(e) {
+      if (e.keyCode == 191)
+      $("#explanation").css("opacity", $("#explanation").css("opacity") == 1 ? 0 : 1);
+  })
+    });
+  </script>
+<style>
+  .explanation {
+    position: absolute;
+    padding: 10px 10px 10px 10px;
+    top:100px;
+    left:20px;
+    width:350px;
+    font: 500 12px "Helvetica Neue", Helvetica, Arial, sans-serif;
+    border: 1px solid #d3d3d3;
+    border-radius: 4px;
+    background: #eee;
+    background: linear-gradient(to bottom, #eee 0%, #ddd 100%);
+    z-index: 3;
+  }
+h2 {
+  font: 500 16px "Helvetica Neue", Helvetica, Arial, sans-serif;
+  position:absolute;
+  left:240px;
+  top:52px
+}
+.wrapper {
+  width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.wrapper div {
+  margin: 30px 0;
+}
+
+.graph {
+  position: absolute;
+  left:390px;
+  top:30px;
+}
+
+svg {
+  position: absolute;
+  left:200px;
+  top:450px;
+}
+
+button {
+  position: absolute;
+  left: 240px;
+  top: 575px;
+  font: 500 14px "Helvetica Neue", Helvetica, Arial, sans-serif;
+      border: 1px solid #d3d3d3;
+    border-radius: 4px;
+    background: #eee;
+    background: linear-gradient(to bottom, #eee 0%, #ddd 100%);
+    z-index: 3;
+}
+.node {
+  font: 300 14px "Helvetica Neue", Helvetica, Arial, sans-serif;
+  fill: #bbb;
+}
+
+.node:hover {
+  fill: #000;
+}
+
+.link {
+  stroke: steelblue;
+  stroke-opacity: .4;
+  fill: none;
+  pointer-events: none;
+}
+
+.node:hover,
+.node--source,
+.node--target {
+  font-weight: 700;
+}
+
+.node--source {
+  fill: #ebae11;
+  /*fill: #fc8d59;*/
+  /*fill: #f1a340;*/
+}
+
+.node--target {
+  /*fill: #f1a340;*/
+  /*fill: #998ec3;*/
+  /*fill: #fc8d59;*/
+  fill: #ebae11;
+}
+
+.link--source,
+.link--target {
+  stroke-opacity: 1;
+  /*stroke-width: 2px;*/
+}
+
+.link--source {
+  /*stroke: #f1a340;*/
+  /*stroke: #fc8d59;*/
+  stroke: #ebae11;
+}
+
+.link--target {
+  /*stroke: #998ec3;*/
+  /*stroke: #f1a340;*/
+  /*stroke: #fc8d59;*/
+  stroke: #ebae11;
+}
+
+.slidertime {
+  stroke: #f1a340;
+    width: 200px;
+}
+
+body {
+  font: 14px sans-serif;
+}
+
+.axis path,
+.axis line {
+  fill: none;
+  stroke: #000;
+  shape-rendering: crispEdges;
+}
+
+.bar:hover {
+  fill: orangered ;
+}
+
+.bar.positive {
+  fill: orangered;
+}
+
+.bar.negative {
+  fill: black;
+}
+
+
+.x.axis path {
+  display: none;
+}
+
+
+.d3-tip {
+  line-height: 1;
+  width: 200px;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 2px;
+}
+
+/* Creates a small triangle extender for the tooltip */
+.d3-tip:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  width: 100%;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.8);
+  content: "\25BC";
+  position: absolute;
+  text-align: center;
+}
+
+
+/* Style northward tooltips differently */
+.d3-tip.n:after {
+  margin: -1px 0 0 0;
+  top: 100%;
+  left: 0;
+}
+
+</style>
+</head>
+<body>
+<h2>Chapter <span id="slider1text">1</span></h2>
+<div class="wrapper">
+<div id="slider1"></div></div>
+<div class = "explanation" id ="explanation">
+<strong><font size=2>Instructions</font></strong><br>
+<p>Press ? to toggle this box.</p>
+<p>Use the slider to move through the book chapters.</p>
+<p>Hover over a character name in a graph.<br>
+Yellow links show connections in the selected chapter.<br>
+Yellow names show connections in the whole book.</p>
+<p>The bars below show emotion intensity for each sentence.<br>
+Click on a character in the graph to see where they appear.<br>
+Hover over each bar to read the original sentence.</p>
+</div>
+<script>
+var jsonfile = "hobbit.json";
+var chapNums = 19
+var newTime = 0;
+var cutoff = 10;
+
+var diameter = 500,
+    radius = diameter / 2,
+    innerRadius = radius - 150;
+
+var cluster = d3.layout.cluster()
+    .size([360, innerRadius])
+    .sort(null)
+    .value(function(d) { return d.size; });
+
+var bundle = d3.layout.bundle();
+
+var line = d3.svg.line.radial()
+    .interpolate("bundle")
+    .tension(.85)
+    .radius(function(d) { return d.y; })
+    .angle(function(d) { return d.x / 180 * Math.PI; });
+
+var graph = d3.select("body").append("svg")
+    .attr("class", "graph")
+    .attr("width", diameter)
+    .attr("height", diameter)
+  .append("g")
+    .attr("transform", "translate(" + radius + "," + radius + ")");
+
+var link = graph.append("g").selectAll(".link"),
+    node = graph.append("g").selectAll(".node");
+
+var activeTime = 1;
+
+loadData(activeTime);
+
+  var axis = d3.svg.axis().orient("top").ticks(chapNums)
+  d3.select('#slider1').call(d3.slider().axis(axis).min(1).max(chapNums).value(activeTime).on("slide", function(evt, value) {
+      d3.select('#slider1text').text(value);
+      updateGraph(value)
+  }));
+
+function loadData(activeTime) { d3.json(jsonfile, function(error, allclasses) {
+  var currentTime = activeTime;
+
+  var classes = allclasses[currentTime]
+  var nodes = cluster.nodes(charHierarchy(classes)),
+      links = charConnections(nodes);
+      // thickness = charThickness(nodes);
+
+  link = link
+      .data(bundle(links))
+    .enter().append("path")
+      .each(function(d) { d.source = d[0], d.target = d[d.length - 1]; })
+      .attr("class", "link")
+      .attr("d", line)
+      .attr("stroke-width", function(d, i) { if (+d.source.thickness[d.target.name]<cutoff) { return +d.source.thickness[d.target.name] } else { return cutoff }; });
+
+  node = node
+      .data(nodes.filter(function(n) { return !n.children; }))
+    .enter().append("text")
+      .attr("class", "node")
+      .attr("dx", function(d) { return d.x < 180 ? 8 : -8; })
+      .attr("dy", ".31em")
+      .attr("transform", function(d) { return "rotate(" + (d.x - 90) + ")translate(" + d.y + ")" + (d.x < 180 ? "" : "rotate(180)"); })
+      .style("text-anchor", function(d) { return d.x < 180 ? "start" : "end"; })
+      // .text(function(d) { return d.key; })
+      .text(function(d) { return d.key; })
+      .on("mouseover", mouseovered)
+      .on("mouseout", mouseouted)
+      .on("click", clicked);
+});
+};
+
+function mouseovered(d) {
+  node
+      .each(function(n) { n.target = n.source = false; });
+
+  link
+      .classed("link--target", function(l) { if (l.target === d) return l.source.source = true; })
+      .classed("link--source", function(l) { if (l.source === d) return l.target.target = true; })
+    .filter(function(l) { return l.target === d || l.source === d; })
+      .each(function() { this.parentNode.appendChild(this); });
+
+  node
+      .classed("node--target", function(n) { return n.target; })
+      .classed("node--source", function(n) { return n.source; });
+}
+
+function mouseouted(d) {
+  link
+      .classed("link--target", false)
+      .classed("link--source", false);
+
+  node
+      .classed("node--target", false)
+      .classed("node--source", false);
+}
+
+function clicked(d) {
+  transitionPlot(d.key)
+  }
+
+  function transitionPlot(selection) {
+    d3.selectAll("rect")
+        .attr("stroke", function(d) { if (d.movingave<0 && d.speaker == selection) {return "black"}
+      else if (d.movingave>0 && d.speaker == selection) {return "orangered"};})
+    .attr("stroke-opacity", 0)
+    .transition()
+    .duration(2000)
+    .attr("fill-opacity", function(d) { if (d.speaker == selection)
+        { return 1.0}
+        else if (selection == "All Characters") { return 1.0}
+      else { return 0.2}; })
+    .attr("stroke-opacity", 1);
+}
+
+function updateGraph(currentTime) { d3.json(jsonfile, function(error, allclasses) {
+  var classes = allclasses[currentTime]
+  var nodes = cluster.nodes(charHierarchy(classes)),
+      links = charConnections(nodes);
+  node = node
+      .data(nodes.filter(function(n) { return !n.children; }))
+      .attr("class", "node");
+  link
+    .data(bundle(links))
+    // .enter().append("path")
+    .transition()
+    .duration(200)
+    .each(function(d) { d.source = d[0], d.target = d[d.length - 1]; })
+    .attr("class", "link")
+    .attr("d", line)
+    .attr("stroke-width", function(d, i) { if (+d.source.thickness[d.target.name]<cutoff) { return +d.source.thickness[d.target.name] } else { return cutoff }; });
+  });
+};
+
+// Lazily construct the character hierarchy from class names.
+function charHierarchy(classes) {
+  var map = {};
+
+  function find(name, data) {
+    var node = map[name], i;
+    if (!node) {
+      node = map[name] = data || {name: name, children: []};
+      if (name.length) {
+        node.parent = find(name.substring(0, i = name.lastIndexOf(".")));
+        node.parent.children.push(node);
+        node.key = name.substring(i + 1);
+      }
+    }
+    return node;
+  }
+
+  classes.forEach(function(d) {
+    find(d.name, d);
+  });
+
+  return map[""];
+}
+
+// Return a list of connections for the given array of nodes.
+function charConnections(nodes) {
+  var map = {},
+      connections = [];
+
+  // Compute a map from name to node.
+  nodes.forEach(function(d) {
+    map[d.name] = d;
+  });
+
+  // For each connection, construct a link from the source to target node.
+  nodes.forEach(function(d) {
+    if (d.connections) d.connections.forEach(function(i) {
+      connections.push({source: map[d.name], target: map[i]});
+    });
+  });
+  return connections;
+}
+var textwidth = 12
+//set up the palette size 
+var margin = {top: 0, right: 0, bottom: 30, left: 40},
+    width = 800 + textwidth//- margin.left - margin.right,
+    height = 600 - margin.top - margin.bottom,
+    barheight = 100, //this is the height of the semtiment bar graph!
+    barwidth = width; //this is the width of the semtiment bar graph!
+    leftoffset = margin.left-textwidth
+
+//specity length of x axis
+var x = d3.scale.ordinal()
+    .rangeBands([0, barwidth]);
+
+//specify length of y axis
+var y = d3.scale.linear()
+    .range([0, barheight]);
+
+var xAxis = d3.svg.axis()
+    .scale(x)
+    .orient("bottom");
+    // .attr("transform", "translate(0,30)");
+
+var yAxis = d3.svg.axis()
+    .scale(y)
+    .orient("left");
+    // .attr("transform", "translate(0,30)");
+
+//specification for tooltip
+var tip = d3.tip()
+  .attr('class', 'd3-tip')
+  .offset([-10, 0])
+  .html(function(d) {
+    return "<span style='color:white'>" + d.text + "</span>";
+  })
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + leftoffset + "," + margin.top + ")");
+
+//add yaxis label
+ svg.append("g")
+      .attr("class", "y axis")
+      //.call(yAxis)
+    .append("text")
+      .attr("transform", "rotate(-90)")
+      //.attr("y", 6)
+      //.attr("dy", ".71em")
+      .attr("font-family", "sans-serif")
+      .attr("font-size", "12px") 
+      .style("text-anchor", "end")
+      .text("")
+      .append("svg:tspan").style("fill", "black").text("Negative ")
+      .append("svg:tspan").style("fill", "black").text('\u2194')
+      .append("svg:tspan").style("fill", "orangered").style("fill-opacity",.75).text(" Positive")
+
+svg.call(tip)
+//upload data
+d3.tsv("hobbit_data.tsv", type, function(error, data) {
+  x.domain(data.map(function(d) { return d.index; }));
+  y.domain([-3, d3.max(data, function(d) { return d.barheight; })]);
+ 
+//draw the bars
+  svg.selectAll(".bar")
+      .data(data)
+    .enter().append("rect")
+      .attr("class", "bar")
+      .attr("x", function(d) { return x(d.index); })
+      .attr("width", x.rangeBand())
+      //assign signs to each value for fill color specification
+      .attr("class", function(d) { return d.movingave < 0 ? "bar negative" : "bar positive"; })
+      //default opacity
+      .attr("fill-opacity", 1. )
+      .attr("y", function(d) { if (d.movingave > 0)
+        {return barheight*.5 - d.movingave *100}
+        else {return barheight*.5} })
+      //set height based on the sign of the value
+      .attr("height",function(d) {if (d.movingave > 0)
+        {return d.movingave *100}
+        else {return Math.abs(d.movingave)*100} })
+      .on('mouseover', tip.show)
+      .on('mouseout', tip.hide)
+
+d3.selectAll("#button").on("click", function(d) {transitionPlot("All Characters");});
+
+});
+
+function type(d) {
+  d.wordcount = +d.wordcount;
+  return d;
+}
+
+</script>
+<button type="button" id = "button">All Characters</button>
