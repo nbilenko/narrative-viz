@@ -1,0 +1,52 @@
+<!doctype html>
+<title>Named Entities Result</title>
+<body>
+
+<button id = "buttonhome"><a href="/"><font color="black">&#x25C0 Home</font></a></button>
+
+{% if name %}
+  <h1>You uploaded {{ name }}!</h1>
+{% else %}
+  <h1>You didnt upload stuff!</h1>
+{% endif %}
+
+<div id="content">
+<div id="chars">
+	<h2>People:</h2>
+	{% if chars|length %}
+		{% for char in chars %}
+			<div>
+		    	{{ char }}
+		    </div>
+		{% endfor %}
+	{% else %}
+		No characters found
+	{% endif %}
+</div>
+<div id="locs">
+	<h2>Locations:</h2>
+	{% if locs|length %}
+		{% for loc in locs %}
+			<div>
+		    	{{ loc }}
+		    </div>
+		{% endfor %}
+	{% else %}
+		No locations found
+	{% endif %}
+</div>
+<div id="orgs">
+	<h2>Organizations:</h2>
+	{% if orgs|length %}
+		{% for org in orgs %}
+			<div>
+		    	{{ org }}
+		    </div>
+		{% endfor %}
+	{% else %}
+		No organizations found
+	{% endif %}
+</div>
+</div>
+
+</body>
